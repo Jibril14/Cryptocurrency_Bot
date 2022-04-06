@@ -1,9 +1,10 @@
 import crypto_market.constants as const
+from crypto_market.default_pagination import default_pagination
 import os
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import pandas as pd
-
+import sqlalchemy
 
 class CryptoMarket(webdriver.Chrome):
     def __init__(self, driver_path=const.DRIVER_PATH):
@@ -11,7 +12,6 @@ class CryptoMarket(webdriver.Chrome):
         os.environ['PATH'] += self.driver_path
 
         super(CryptoMarket, self).__init__()
-        self.crypto_data = []
         self.nname = []
         self.price = []
         self.change = []
@@ -27,36 +27,27 @@ class CryptoMarket(webdriver.Chrome):
         return self.get(const.WEBSITE)
 
     def first_crypto_pagination(self):
-        self.el_in_paginations += 25
-        pagination_elements = self.find_elements(
-            By.XPATH, '//div[@id="scr-res-table"]//table//tbody//tr')
-        name = self.find_elements(
-            By.XPATH, '//div[@id="scr-res-table"]//table//tbody//tr//td[2]')
-        price = self.find_elements(
-            By.XPATH, '//div[@id="scr-res-table"]//table//tbody//tr//td[3]')
-        change = self.find_elements(
-            By.XPATH, '//div[@id="scr-res-table"]//table//tbody//tr//td[4]')
-        change_percent = self.find_elements(
-            By.XPATH, '//div[@id="scr-res-table"]//table//tbody//tr//td[5]')
-        market_cap = self.find_elements(
-            By.XPATH, '//div[@id="scr-res-table"]//table//tbody//tr//td[6]')
-        total_volume = self.find_elements(
-            By.XPATH, '//div[@id="scr-res-table"]//table//tbody//tr//td[9]')
-        circulating_supply = self.find_elements(
-            By.XPATH, '//div[@id="scr-res-table"]//table//tbody//tr//td[10]')
+        self.implicitly_wait(15)
+        print('Fetching Second Pagination')
+        default_pagination(self)
 
-        # store each innerHtml in a list.
-        # this enable us append cryptos of other paginations
-        for el in range(len(pagination_elements)):
-            self.nname.append(name[el].text)
-            self.price.append(price[el].text)
-            self.change.append(change[el].text)
-            self.change_percent.append(change_percent[el].text)
-            self.market_cap.append(market_cap[el].text)
-            self.total_volume.append(total_volume[el].text)
-            self.circulating_supply.append(circulating_supply[el].text)
+    def second_crypto_pagination(self):
+        self.implicitly_wait(15)
+        next_btn = self.find_element(By.XPATH, '//div[@id="scr-res-table"]/div[2]/button[3]/span//span')
+        print('Fetching Second Pagination')
+        next_btn.click()
+        default_pagination(self)
 
+    def third_crypto_pagination(self):
+        self.implicitly_wait(15)
+        next_btn = self.find_element(By.XPATH, '//div[@id="scr-res-table"]/div[2]/button[3]/span//span')
+        print('Fetching Third Pagination')
+        next_btn.click()
+        default_pagination(self)   
+
+   
     def display_data(self):
+        # display data with pandas
         df_cryto_currency = pd.DataFrame(
             columns=[
                 'Names',
@@ -66,10 +57,12 @@ class CryptoMarket(webdriver.Chrome):
                 'Market Cap',
                 'Total Volumn(All Currency) 24Hr',
                 'Circulation Supply'])
-        print(df_cryto_currency)
-
+        
+        print("self.name array", self.nname)
+        print("len.change array", len(self.change))
         # self.nname, self.price, self.change etc are all list
         for i in range(self.el_in_paginations):
+            print(i)
             df_cryto_currency = df_cryto_currency.append(
                 {
                     'Names': self.nname[i],
@@ -84,3 +77,12 @@ class CryptoMarket(webdriver.Chrome):
                 ignore_index=True)
 
         print(df_cryto_currency)
+
+        # save data into an excel file
+        df_cryto_currency.to_excel('crypto_real_time.xlsx', index=False)
+
+        # save data to postgresSql
+        engine = sqlalchemy.create_engine('postgres://postgres:abcde@localhost:5432')
+        df_cryto_currency.to_sql('crypto_real_time_info', engine, index=False)
+
+        return self.close()
